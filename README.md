@@ -7,9 +7,9 @@ The mentioned script throws an Exception while running.
 - python -m venv env
 - source ./env/bin/activate
 - pip install -r requirements.txt
-- In script download_script.py change web_driver_path to the path of your Chrome Web Driver
+- In script scraper.py change web_driver_path to the path of your Chrome Web Driver
 - After setting up everything:
-> python download_script.py
+> python scraper.py
 
 ### Issues
 Nothing to add
