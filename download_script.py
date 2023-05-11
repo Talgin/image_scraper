@@ -1,10 +1,18 @@
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 import time
+import os
 
 # What you enter here will be searched for in
 # Google Images
-query = "dogs"
+query = 'dogs'
+number_of_needed_images = 200
+downloads_folder = '/home/talgat/PROJECTS/IMAGE_SCRAPING/downloads'
+folder_to_save_images = os.path.join(downloads_folder, query)
+
+# Creating needed folder if it does not exist
+if not os.path.exists(folder_to_save_images):
+	os.makedirs(folder_to_save_images)
 
 web_driver_path = '/home/talgat/PROJECTS/IMAGE_SCRAPING/chromedriver_linux64/chromedriver'
 # Creating a webdriver instance
@@ -70,9 +78,9 @@ scroll_to_bottom()
 
 
 # Loop to capture and save each image
-for i in range(1, 50):
+for i in range(1, number_of_needed_images):
 
-	# range(1, 50) will capture images 1 to 49 of the search results
+	# range(1, number_of_needed_images) will capture images 1 to number_of_needed_images of the search results
 	# You can change the range as per your need.
 	try:
 
@@ -83,7 +91,7 @@ for i in range(1, 50):
 
 		# Enter the location of folder in which
 		# the images will be saved
-		img.screenshot('/home/talgat/PROJECTS/IMAGE_SCRAPING/downloads/' +
+		img.screenshot(folder_to_save_images + '/' +
 					query + ' (' + str(i) + ').png')
 		# Each new screenshot will automatically
 		# have its name updated
