@@ -1,5 +1,5 @@
-## Face detection and recognition API using Retinaface, QMagFace and FastAPI
-Corrected version of image downloading from google images [Geeksforgeeks](https://www.geeksforgeeks.org/download-google-image-using-python-and-selenium/). 
+## Image Scraping Scripts
+SOMETHING is not working currently!!! Corrected version of image downloading from google images [Geeksforgeeks](https://www.geeksforgeeks.org/download-google-image-using-python-and-selenium/). 
 The mentioned script throws an Exception while running.
 
 ### Installation

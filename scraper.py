@@ -91,17 +91,19 @@ for i in range(1, number_of_needed_images):
 
 		# Enter the location of folder in which
 		# the images will be saved
-		img.screenshot(folder_to_save_images + '/' +
-					query + ' (' + str(i) + ').png')
+		img_path = folder_to_save_images + '/' + query + ' (' + str(i) + ').png'
+		print(img_path)
+		img.screenshot(img_path)
 		# Each new screenshot will automatically
 		# have its name updated
 
 		# Just to avoid unwanted errors
-		time.sleep(0.1)
+		time.sleep(0.2)
 
 	except:
 		# if we can't find the XPath of an image,
 		# we skip to the next image
+		print('skipping')
 		continue
 
 # Finally, we close the driver
