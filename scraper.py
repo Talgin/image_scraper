@@ -1,111 +1,153 @@
+#Selenium helps you use this executable to automate Chrome
+from multiprocessing.sharedctypes import Value
 from selenium import webdriver
+from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
+import requests
+import io
+from datetime import datetime as dt
+from PIL import Image
 import time
 import os
 
-# What you enter here will be searched for in
-# Google Images
-query = 'dogs'
-number_of_needed_images = 200
-downloads_folder = '/home/talgat/PROJECTS/IMAGE_SCRAPING/downloads'
-folder_to_save_images = os.path.join(downloads_folder, query)
-
-# Creating needed folder if it does not exist
-if not os.path.exists(folder_to_save_images):
-	os.makedirs(folder_to_save_images)
-
+# Download the driver from chromedriver website for relevant OS i.e. MAC, Windows, Debian, etc.
 web_driver_path = '/home/talgat/PROJECTS/IMAGE_SCRAPING/chromedriver_linux64/chromedriver'
-# Creating a webdriver instance
-driver = webdriver.Chrome(web_driver_path)
+wd = webdriver.Chrome(web_driver_path)
 
-# Maximize the screen
-driver.maximize_window()
+def get_google_page_url(driver, label):
+    # Maximize the screen
+    driver.maximize_window()
 
-# Open Google Images in the browser
-driver.get('https://images.google.com/')
+    # Open Google Images in the browser
+    driver.get('https://images.google.com/')
 
-# Finding the search box
-# box = driver.find_element_by_xpath('//*[@id="sbtc"]/div/div[2]/input')
-# box = driver.find_element_by_xpath('//*[@id="tsf"]/div[2]/div[1]/div[1]/div/div[2]/input')
-box = driver.find_element_by_class_name('gLFyf')
-# Type the search query in the search box
-box.send_keys(query)
+    # Finding the search box
+    # box = driver.find_element_by_xpath('//*[@id="sbtc"]/div/div[2]/input')
+    # box = driver.find_element_by_xpath('//*[@id="tsf"]/div[2]/div[1]/div[1]/div/div[2]/input')
+    box = driver.find_element_by_class_name('gLFyf')
+    # Type the search query in the search box
+    box.send_keys(label)
 
-# Pressing enter
-box.send_keys(Keys.ENTER)
+    # Pressing enter
+    box.send_keys(Keys.ENTER)
 
-# Function for scrolling to the bottom of Google
-# Images results
-def scroll_to_bottom():
+    get_url = driver.current_url
+    # print("The current url is:"+str(get_url))
 
-	last_height = driver.execute_script('\
-	return document.body.scrollHeight')
+    return get_url
+        
 
-	while True:
-		driver.execute_script('\
-		window.scrollTo(0,document.body.scrollHeight)')
+def get_images_from_google(wd, delay, max_images, url):
+    def scroll_down(wd):
+        wd.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        time.sleep(delay)
 
-		# waiting for the results to load
-		# Increase the sleep time if your internet is slow
-		time.sleep(3)
+    wd.get(url)
 
-		new_height = driver.execute_script('\
-		return document.body.scrollHeight')
+    image_urls = set()
+    skips = 0
+    while len(image_urls) + skips < max_images:
+        scroll_down(wd)
+        # thumbnails = wd.find_elements(By.CLASS_NAME, "Q4LuWd")
+        # thumbnails = wd.find_element_by_xpath("//img[@jsname = 'bN97Pc']")
+        thumbnails = wd.find_elements_by_class_name('rg_i')
+        print('Got thumbnails:', len(thumbnails))
 
-		# click on "Show more results" (if exists)
-		try:
-			driver.find_element_by_css_selector(".YstHxe input").click()
+        for img in thumbnails:
+            try:
+                img.click()
+                time.sleep(delay)
+            except:
+                print('Continuing after click:', len(image_urls))
+                continue
 
-			# waiting for the results to load
-			# Increase the sleep time if your internet is slow
-			time.sleep(3)
+            images = wd.find_elements_by_class_name('r48jcc')
+            for image in images:
+                if image.get_attribute('src') in image_urls:
+                    max_images += 1
+                    skips += 1
+                    break
 
-		except:
-			pass
+                if image.get_attribute('src') and 'http' in image.get_attribute('src'):
+                    image_urls.add(image.get_attribute('src'))
+                print(f"Found {len(image_urls)}") 
+        if len(image_urls) >= max_images:
+            break
 
-		# checking if we have reached the bottom of the page
-		if new_height == last_height:
-			break
-
-		last_height = new_height
-
-
-# Calling the function
-
-# NOTE: If you only want to capture a few images,
-# there is no need to use the scroll_to_bottom() function.
-scroll_to_bottom()
+    return image_urls
 
 
-# Loop to capture and save each image
-for i in range(1, number_of_needed_images):
+def download_image(down_path, url, file_name, image_type='JPEG',
+                   verbose=True):
+    try:
+        tm = dt.now()
+        curr_time = tm.strftime('%H:%M:%S')
+        #Content of the image will be a url
+        img_content = requests.get(url).content
+        #Get the bytes IO of the image
+        img_file = io.BytesIO(img_content)
+        #Stores the file in memory and convert to image file using Pillow
+        image = Image.open(img_file)
+        file_pth = down_path + file_name
 
-	# range(1, number_of_needed_images) will capture images 1 to number_of_needed_images of the search results
-	# You can change the range as per your need.
-	try:
+        with open(file_pth, 'wb') as file:
+            image.save(file, image_type)
 
-	# XPath of each image
-		img = driver.find_element_by_xpath(
-			'//*[@id="islrg"]/div[1]/div[' +
-		str(i) + ']/a[1]/div[1]/img')
+        if verbose == True:
+            print(f'The image: {file_pth} downloaded successfully at {curr_time}.')
+    except Exception as e:
+        print(f'Unable to download image from Google Photos due to\n: {str(e)}')
 
-		# Enter the location of folder in which
-		# the images will be saved
-		img_path = folder_to_save_images + '/' + query + ' (' + str(i) + ').png'
-		print(img_path)
-		img.screenshot(img_path)
-		# Each new screenshot will automatically
-		# have its name updated
 
-		# Just to avoid unwanted errors
-		time.sleep(0.2)
 
-	except:
-		# if we can't find the XPath of an image,
-		# we skip to the next image
-		print('skipping')
-		continue
+if __name__ == '__main__':
+    # Labels/queries of the search
+    labels = [
+        'dogs','cats', 'birds'
+    ]
+    # Google search URL
+    google_urls = []
+    for l in labels:
+        google_urls.append(get_google_page_url(wd, l))
+    # google_urls = [
+    #                'https://www.google.com/search?q=brice+samba&tbm=isch&ved=2ahUKEwinwYCZ3cj3AhVOyRoKHVjuC5UQ2-cCegQIABAA&oq=brice+samba&gs_lcp=CgNpbWcQAzIHCCMQ7wMQJzIFCAAQgAQyBQgAEIAEMgUIABCABDIFCAAQgAQyBAgAEB4yBAgAEBgyBAgAEBgyBAgAEBgyBAgAEBg6CAgAELEDEIMBOggIABCABBCxAzoHCAAQsQMQQzoECAAQQzoECAAQAzoGCAAQCBAeULQIWOYXYP4ZaABwAHgAgAFKiAGBBpIBAjEymAEAoAEBqgELZ3dzLXdpei1pbWfAAQE&sclient=img&ei=V_RzYue5Ls6Sa9jcr6gJ&bih=969&biw=1920&rlz=1C1CHBF_en-GBGB924GB924',
+    #                'https://www.google.com/search?q=keinan+davis+footballer&tbm=isch&ved=2ahUKEwjn7dqj3cj3AhUBdBoKHXxWCAMQ2-cCegQIABAA&oq=keinan+davis+footballer&gs_lcp=CgNpbWcQAzIECAAQGDoHCCMQ7wMQJzoFCAAQgAQ6BAgAEB46CAgAELEDEIMBOgsIABCABBCxAxCDAToICAAQgAQQsQM6BAgAEEM6BwgAELEDEEM6BggAEAUQHjoGCAAQCBAeUO8JWO4qYOAraABwAHgAgAFViAH8C5IBAjI0mAEAoAEBqgELZ3dzLXdpei1pbWfAAQE&sclient=img&ei=bvRzYuf-DIHoafysoRg&bih=969&biw=1920&rlz=1C1CHBF_en-GBGB924GB924',
+    #                'https://www.google.com/search?q=ethan+horvath+football&tbm=isch&ved=2ahUKEwixt9HN3cj3AhVJ3RoKHdoiAeoQ2-cCegQIABAA&oq=ethan+horvath+football&gs_lcp=CgNpbWcQAzoHCCMQ7wMQJzoECAAQQzoFCAAQgAQ6BAgAEB46BAgAEBhQiQRYgQ9gxRBoAHAAeACAAVeIAeUEkgECMTCYAQCgAQGqAQtnd3Mtd2l6LWltZ8ABAQ&sclient=img&ei=xvRzYrG8CMm6a9rFhNAO&bih=969&biw=1920&rlz=1C1CHBF_en-GBGB924GB924',
+    #                'https://www.google.com/search?q=steve+cook+forest&tbm=isch&ved=2ahUKEwiXipXR3cj3AhVKexoKHYg2BjcQ2-cCegQIABAA&oq=steve+cook+&gs_lcp=CgNpbWcQARgAMgcIIxDvAxAnMgQIABADMgUIABCABDIFCAAQgAQyBQgAEIAEMgUIABCABDIFCAAQgAQyBQgAEIAEMgUIABCABDIFCAAQgAQ6CAgAEIAEELEDOggIABCxAxCDAToECAAQQzoLCAAQgAQQsQMQgwFQ3gZYhhJgkSJoAHAAeACAAbMBiAGFB5IBBDExLjGYAQCgAQGqAQtnd3Mtd2l6LWltZ8ABAQ&sclient=img&ei=zfRzYtfvIMr2aYjtmLgD&bih=969&biw=1920&rlz=1C1CHBF_en-GBGB924GB924',
+    #                'https://www.google.com/search?q=joe+worrall&tbm=isch&ved=2ahUKEwiLhJna3cj3AhXW44UKHYvcCjIQ2-cCegQIABAA&oq=joe+worrall&gs_lcp=CgNpbWcQAzIHCCMQ7wMQJzIFCAAQgAQyBQgAEIAEMgUIABCABDIFCAAQgAQyBAgAEEMyBQgAEIAEMgUIABCABDIECAAQGDIECAAQGDoICAAQsQMQgwE6CwgAEIAEELEDEIMBOggIABCABBCxAzoKCAAQsQMQgwEQQzoHCAAQsQMQQ1DcZ1jXdWDPeWgBcAB4AIABkAGIAY8HkgEEMTEuMZgBAKABAaoBC2d3cy13aXotaW1nwAEB&sclient=img&ei=4PRzYouUHdbHlwSLuauQAw&bih=969&biw=1920&rlz=1C1CHBF_en-GBGB924GB924',
+    #                'https://www.google.com/search?q=ryan+yates&tbm=isch&ved=2ahUKEwje3vni3cj3AhXa0oUKHfW4D5kQ2-cCegQIABAA&oq=ryan+yates&gs_lcp=CgNpbWcQAzIHCCMQ7wMQJzIFCAAQgAQyBQgAEIAEMgYIABAFEB4yBAgAEBgyBAgAEBgyBAgAEBgyBAgAEBgyBAgAEBgyBAgAEBg6BAgAEEM6CAgAELEDEIMBOgsIABCABBCxAxCDAToICAAQgAQQsQM6CggjEO8DEOoCECc6CggAELEDEIMBEEM6BwgAELEDEENQpghYlBdgwxhoAXAAeACAAViIAbgGkgECMTKYAQCgAQGqAQtnd3Mtd2l6LWltZ7ABCsABAQ&sclient=img&ei=8vRzYt6dM9qllwT18b7ICQ&bih=969&biw=1920&rlz=1C1CHBF_en-GBGB924GB924',
+    #                'https://www.google.com/search?q=jack+colback+footballer&tbm=isch&ved=2ahUKEwiGi83s3cj3AhUDpBoKHTQKDzcQ2-cCegQIABAA&oq=jack+colback+footballer&gs_lcp=CgNpbWcQAzIECAAQGDoHCCMQ7wMQJzoFCAAQgAQ6BggAEAcQHjoECAAQQzoICAAQsQMQgwE6CwgAEIAEELEDEIMBOggIABCABBCxAzoGCAAQBRAeOgQIABAeOgYIABAIEB5QowhY0iRgpSVoAHAAeACAAZgBiAGxDZIBBDIzLjGYAQCgAQGqAQtnd3Mtd2l6LWltZ8ABAQ&sclient=img&ei=B_VzYsbrBIPIarSUvLgD&bih=969&biw=1920&rlz=1C1CHBF_en-GBGB924GB924',
+    #                'https://www.google.com/search?q=scott+mckenna&tbm=isch&ved=2ahUKEwj-mJD53cj3AhUQQhoKHQpnDfMQ2-cCegQIABAA&oq=scott+&gs_lcp=CgNpbWcQARgAMgcIIxDvAxAnMgQIABBDMgcIABCxAxBDMgQIABBDMgQIABBDMgcIABCxAxBDMggIABCxAxCDATILCAAQgAQQsQMQgwEyCAgAEIAEELEDMgsIABCABBCxAxCDAToECAAQAzoFCAAQgARQ6QRYwgtghxZoAHAAeACAAUuIAd0DkgEBN5gBAKABAaoBC2d3cy13aXotaW1nwAEB&sclient=img&ei=IfVzYr6EFZCEaYrOtZgP&bih=969&biw=1920&rlz=1C1CHBF_en-GBGB924GB924',
+    #                'https://www.google.com/search?q=cafu+forest&tbm=isch&ved=2ahUKEwi7xdeN3sj3AhUE4hoKHcHTCO8Q2-cCegQIABAA&oq=cafu+forest&gs_lcp=CgNpbWcQAzIFCAAQgAQyBggAEAgQHjoECAAQQzoECAAQHjoECAAQGFAAWKIHYKUJaABwAHgAgAFZiAHSA5IBATeYAQCgAQGqAQtnd3Mtd2l6LWltZ8ABAQ&sclient=img&ei=TPVzYrvvG4TEa8Gno_gO&bih=969&biw=1920&rlz=1C1CHBF_en-GBGB924GB924',
+    #                'https://www.google.com/search?q=max+lowe+footballer&tbm=isch&ved=2ahUKEwjpj4aQ3sj3AhUL_BoKHSF6CmwQ2-cCegQIABAA&oq=max+lowe+footballer&gs_lcp=CgNpbWcQAzIECAAQGDoHCCMQ7wMQJzoGCAAQCBAeOgsIABCABBCxAxCDAToFCAAQgAQ6BAgAEAM6CAgAELEDEIMBOggIABCABBCxAzoECAAQQzoHCAAQsQMQQzoGCAAQBRAeOgQIABAeUKMIWLsiYJgjaABwAHgAgAGdAYgB9wqSAQQxOS4xmAEAoAEBqgELZ3dzLXdpei1pbWfAAQE&sclient=img&ei=UfVzYqmjGYv4a6H0qeAG&bih=969&biw=1920&rlz=1C1CHBF_en-GBGB924GB924',
+    #                'https://www.google.com/search?q=joe+lolley&rlz=1C1CHBF_en-GBGB924GB924&hl=en&sxsrf=ALiCzsYdA_zTQwIGhtfmL__WXkmGyvR7aQ:1651766657726&source=lnms&tbm=isch&sa=X&ved=2ahUKEwjduIqn3sj3AhULJMAKHZ8hCoYQ_AUoAnoECAEQBA&biw=1920&bih=969&dpr=1',
+    #                'https://www.google.com/search?q=alex+mighten&tbm=isch&ved=2ahUKEwi73fyn3sj3AhUD-4UKHSjyBpAQ2-cCegQIABAA&oq=alex&gs_lcp=CgNpbWcQARgAMgcIIxDvAxAnMgcIIxDvAxAnMgoIABCxAxCDARBDMgQIABBDMgQIABBDMgQIABBDMggIABCABBCxAzIECAAQQzIICAAQgAQQsQMyCAgAEIAEELEDOgUIABCABDoECAAQGDoLCAAQgAQQsQMQgwE6CAgAELEDEIMBOgcIABCxAxBDUKIHWJwLYLwUaABwAHgAgAFLiAHIApIBATWYAQCgAQGqAQtnd3Mtd2l6LWltZ8ABAQ&sclient=img&ei=g_VzYvuPJIP2lwSo5JuACQ&bih=969&biw=1920&rlz=1C1CHBF_en-GBGB924GB924&hl=en'
+    # ]
+    print('Current queries:', google_urls)
 
-# Finally, we close the driver
-driver.close()
+    # Check the length of the lists
+    if len(google_urls) != len(labels):
+        raise ValueError('The length of the url list does not match the labels list.')
 
+    # What you enter here will be searched for in
+    # Google Images
+    downloads_folder = '/home/talgat/PROJECTS/IMAGE_SCRAPING/downloads'
+
+    # Make the directory if it doesn't exist
+    for lbl in labels:
+        folder_to_save_images = os.path.join(downloads_folder, lbl)
+        if not os.path.exists(folder_to_save_images):
+            print(f'Making directory: {str(lbl)}')
+            os.makedirs(folder_to_save_images)
+
+    for url_current, lbl in zip(google_urls, labels):
+        print('url_current:', url_current)
+        urls = get_images_from_google(wd, 0.3, 10, url_current)
+        print('urls:', urls)
+        # Once we have added our urls to empty set then 
+        for i, url in enumerate(urls):
+            download_image(down_path=f'/home/talgat/PROJECTS/IMAGE_SCRAPING/downloads/{lbl}/', 
+                        url=url, 
+                        file_name=str(i+1)+ '.jpg',
+                        verbose=True) 
+    wd.quit()
